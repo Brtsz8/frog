@@ -5,6 +5,14 @@
 #include <unistd.h>
 #include <ncurses.h>
 
+#define FRAME_TIME	25
+#define PASS_TIME	20
+#define MVB_FACTOR	2							// move every FRAME_TIME * MVB_FACTOR [ms] BALL
+#define MVC_FACTOR	5	
+
+#define QUIT_TIME	3
+#define QUIT		'k'
+#define NOKEY		' '
 
 #define BORDER		1
 #define DELAY_ON	1
@@ -48,6 +56,12 @@ typedef struct {
 	int ymin, ymax;
 	char** shape;								// shape of the object (2-dim characters array (box))
 } OBJ;
+
+typedef struct {
+	unsigned int frame_time;
+	float pass_time;
+	int frame_no;
+} TIMER;
 
 //////////////////////////////////
 //////////////Functions//////////
@@ -195,6 +209,17 @@ void InitPos(OBJ* ob, int xs, int ys)
 	ob->y = ys;
 }
 
+void EndGame(const char* info, WIN* W)						// sth at the end
+{
+	CleanWin(W,1);
+	for(int i = QUIT_TIME; i > 0; i--)
+	{
+		mvwprintw(W->window,1,2,"%s Closing the game in %d seconds...",info,i);
+		wrefresh(W->window);
+		sleep(1);
+	}
+}
+
 OBJ* InitFrog(WIN* w, int col)
 {
 //	OBJ* ob    = new OBJ;								// C++
@@ -223,6 +248,76 @@ OBJ* InitFrog(WIN* w, int col)
 	return ob;
 }
 
+//////
+void ShowTimer(WIN* W, float pass_time)
+{
+	mvwprintw(W->window,1,9,"%.2f",pass_time);
+	wrefresh(W->window);
+}
+
+
+void MoveCatcher(OBJ* ob, char ch, unsigned int frame)
+{
+	if (frame - ob->mv >= MVC_FACTOR)
+	{
+		switch( ch ) {
+			case 'w': Show(ob,0,-1);	break;
+			case 's': Show(ob,0,1); 	break;
+			case 'a': Show(ob,-1,0);	break;
+			case 'd': Show(ob,1,0);		break;
+			case 'q': Show(ob,-1,-1);	break;
+			case 'e': Show(ob,-1,-1);	break;
+			case 'z': Show(ob,-1,1);	break;
+			case 'c': Show(ob,1,1);
+		}
+		ob->mv = frame;
+	}
+}
+
+
+void Sleep(unsigned int tui) { usleep(tui * 1000); } 					// micro_sec = frame_time * 1000
+
+TIMER* InitTimer(WIN* status)
+{
+	TIMER* timer = (TIMER*)malloc(sizeof(TIMER));
+	timer->frame_no = 1;
+	timer->frame_time = FRAME_TIME;
+	timer->pass_time = PASS_TIME / 1.0;
+	return timer;
+}
+
+int UpdateTimer(TIMER* T, WIN* status)							// return 1: time is over; otherwise: 0
+{
+	T->frame_no++;
+	T->pass_time = PASS_TIME - (T->frame_no * T->frame_time / 1000.0);
+	if (T->pass_time < (T->frame_time / 1000.0) ) T->pass_time = 0; 		// make this zero (floating point!)
+	else Sleep(T->frame_time);
+	ShowTimer(status,T->pass_time);
+	if (T->pass_time == 0) return 1;
+	return 0;
+}
+
+int MainLoop(WIN* status, OBJ* catcher, TIMER* timer) 			// 1: timer is over, 0: quit the game
+{
+	int ch;
+	int pts = 0;
+	while ( (ch = wgetch(status->window)) != QUIT )					// NON-BLOCKING! (nodelay=TRUE)
+	{
+		if (ch == ERR) ch = NOKEY;						// ERR is ncurses predefined
+		/* change background or move; update status */
+		else
+		{
+			if (ch == 'b') {  Show(catcher,0,0); }
+			else MoveCatcher(catcher, ch, timer->frame_no);
+		}
+		
+		flushinp();                     					// clear input buffer (avoiding multiple key pressed)
+		/* update timer */
+		if (UpdateTimer(timer,status)) return pts;				// sleep inside
+	}
+	return 0;
+}
+
 int main()
 {
 	WINDOW *mainwin = Start();
@@ -236,9 +331,13 @@ int main()
 	OBJ* frog = InitFrog(playwin,FROG_COLOR);
 	Show(frog,0,0);
 
+	////
+	TIMER* timer = InitTimer(statwin);
+	int result;
+	if ( (result = MainLoop(statwin, frog, timer)) == 0)  EndGame("You have decided to quit the game.",statwin);
 
 	getch();
-	
+
 	delwin(playwin->window);							// Clean up (!)
 	delwin(statwin->window);
 	delwin(mainwin);
