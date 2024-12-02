@@ -22,6 +22,7 @@
 #define STAT_COLOR      2
 #define PLAY_COLOR      3
 #define FROG_COLOR		4
+#define CAR_COLOR		5
 
 #define MAX_LVL 3
 
@@ -80,6 +81,7 @@ WINDOW* Start()
 	init_pair(PLAY_COLOR, COLOR_BLUE, COLOR_GREEN);
 	init_pair(STAT_COLOR, COLOR_WHITE, COLOR_BLUE);
 	init_pair(FROG_COLOR, COLOR_WHITE,COLOR_GREEN);
+	init_pair(CAR_COLOR, COLOR_BLACK, COLOR_WHITE);
 	
 	noecho();		//NIE wypisuje inputu na ekran 
 	curs_set(0);
@@ -227,17 +229,17 @@ OBJ* InitFrog(WIN* w, int col)
 	ob->bflag  = 1;									// normal colors (initially)
 	ob->color  = col;
 	ob->win    = w;
-	ob->width  = 6;
-	ob->height = 3;
+	ob->width  = 2;
+	ob->height = 2;
 	ob->mv     = 0;
 
 	ob->shape = (char**)malloc(sizeof(char*) * ob->height);				// array of pointers (char*)
 	for(int i = 0; i < ob->height; i++)
 		ob->shape[i] = (char*)malloc(sizeof(char) * (ob->width + 1));		// +1: end-of-string (C): '\0'
 
-	strcpy(ob->shape[0],"######");
-	strcpy(ob->shape[1],"#frog#");
-	strcpy(ob->shape[2],"######");
+	strcpy(ob->shape[0],"FR");
+	strcpy(ob->shape[1],"OG");
+
 
 
 	InitPos(ob,(ob->win->cols - ob->width) / 2,(ob->win->rows - ob->height)/ 2);
@@ -248,6 +250,33 @@ OBJ* InitFrog(WIN* w, int col)
 	return ob;
 }
 
+OBJ* InitCar(WIN* w, int col)
+{
+	OBJ* ob	   = (OBJ*)malloc(sizeof(OBJ));						// C
+	ob->bflag  = 1;
+	ob->color  = col;
+	ob->win    = w;
+	ob->width  = 4;
+	ob->height = 2;
+	ob->mv     = MVB_FACTOR;
+
+	ob->shape = (char**)malloc(sizeof(char*) * ob->height);				// array of pointers (char*)
+	for(int i = 0; i < ob->height; i++)
+		ob->shape[i] = (char*)malloc(sizeof(char) * (ob->width + 1));		// +1: end-of-string (C): '\0'
+
+	strcpy(ob->shape[0],"[OO>");
+	strcpy(ob->shape[1],"[OO>");
+
+	ob->xmin   = 1;
+	ob->xmax   = w->cols - 1;
+	ob->ymin   = 1;
+	ob->ymax   = w->rows - 1;
+	InitPos(ob, 20,20); //ob->xmin, ob->ymin);
+	return ob;
+}
+
+
+
 //////
 void ShowTimer(WIN* W, float pass_time)
 {
@@ -256,7 +285,7 @@ void ShowTimer(WIN* W, float pass_time)
 }
 
 
-void MoveCatcher(OBJ* ob, char ch, unsigned int frame)
+void MoveFrog(OBJ* ob, char ch, unsigned int frame)
 {
 	if (frame - ob->mv >= MVC_FACTOR)
 	{
@@ -273,7 +302,13 @@ void MoveCatcher(OBJ* ob, char ch, unsigned int frame)
 		ob->mv = frame;
 	}
 }
-
+int Collision(OBJ* c, OBJ* b)								// collision of two boxes
+{
+	if ( ((c->y >= b->y && c->y < b->y+b->height) || (b->y >= c->y && b->y < c->y+c->height)) &&
+	    ((c->x >= b->x && c->x < b->x+b->width) || (b->x >= c->x && b->x < c->x+c->width)) )
+		return 1;
+	else 	return 0;
+}
 
 void Sleep(unsigned int tui) { usleep(tui * 1000); } 					// micro_sec = frame_time * 1000
 
@@ -297,7 +332,7 @@ int UpdateTimer(TIMER* T, WIN* status)							// return 1: time is over; otherwis
 	return 0;
 }
 
-int MainLoop(WIN* status, OBJ* catcher, TIMER* timer) 			// 1: timer is over, 0: quit the game
+int MainLoop(WIN* status, OBJ* frog, OBJ* car, TIMER* timer) 			// 1: timer is over, 0: quit the game
 {
 	int ch;
 	int pts = 0;
@@ -307,9 +342,11 @@ int MainLoop(WIN* status, OBJ* catcher, TIMER* timer) 			// 1: timer is over, 0:
 		/* change background or move; update status */
 		else
 		{
-			if (ch == 'b') {  Show(catcher,0,0); }
-			else MoveCatcher(catcher, ch, timer->frame_no);
+			if (ch == 'b') {  Show(frog,0,0); }
+			else MoveFrog(frog, ch, timer->frame_no);
 		}
+		if(Collision(frog , car))
+			mvwaddstr(status->window, 1, 1, "are you stupid?");
 		
 		flushinp();                     					// clear input buffer (avoiding multiple key pressed)
 		/* update timer */
@@ -329,12 +366,14 @@ int main()
 	Menu(playwin);
 
 	OBJ* frog = InitFrog(playwin,FROG_COLOR);
+	OBJ* car = InitCar(playwin,CAR_COLOR);
 	Show(frog,0,0);
+	Show(car,0,0);
 
 	////
 	TIMER* timer = InitTimer(statwin);
 	int result;
-	if ( (result = MainLoop(statwin, frog, timer)) == 0)  EndGame("You have decided to quit the game.",statwin);
+	if ( (result = MainLoop(statwin, frog, car, timer)) == 0)  EndGame("You have decided to quit the game.",statwin);
 
 	getch();
 
