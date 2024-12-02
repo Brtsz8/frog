@@ -28,10 +28,13 @@
 
 #define ENTER 10
 // playwin (WIN) parameters
-#define ROWS		25							
+#define ROWS		26							
 #define COLS		60
 #define OFFY		4
 #define OFFX		8
+
+//random number generation 
+#define RA(min, max) ( (min) + rand() % ((max) - (min) + 1) )
 
 ///////////////////////////////////
 ////////////Structs///////////////
@@ -81,14 +84,15 @@ WINDOW* Start()
 	init_pair(PLAY_COLOR, COLOR_BLUE, COLOR_GREEN);
 	init_pair(STAT_COLOR, COLOR_WHITE, COLOR_BLUE);
 	init_pair(FROG_COLOR, COLOR_WHITE,COLOR_GREEN);
-	init_pair(CAR_COLOR, COLOR_BLACK, COLOR_WHITE);
+	init_pair(CAR_COLOR, COLOR_WHITE,COLOR_BLACK );
+
 	
 	noecho();		//NIE wypisuje inputu na ekran 
 	curs_set(0);
 	return win;
 }
 
-void CleanWin(WIN* W, int bo)							// bo(rder): 0 | 1
+void CleanWin(WIN* W, int bo)							
 {
 	int i, j;
 	wattron(W->window,COLOR_PAIR(W->color));
@@ -109,7 +113,7 @@ void Welcome(WINDOW* win)
 
 }
 
-void Menu(WIN* win)
+int Menu(WIN* win)
 {
 	char choices[3][20] = {"level 1","level 2","level 3"};
 
@@ -148,6 +152,8 @@ void Menu(WIN* win)
 
 	CleanWin(win,1);						
 	wrefresh(win->window);
+
+	return current +1 ;  //returns the level index
 }
 
 void Print(OBJ* ob)
@@ -237,12 +243,12 @@ OBJ* InitFrog(WIN* w, int col)
 	for(int i = 0; i < ob->height; i++)
 		ob->shape[i] = (char*)malloc(sizeof(char) * (ob->width + 1));		// +1: end-of-string (C): '\0'
 
-	strcpy(ob->shape[0],"FR");
-	strcpy(ob->shape[1],"OG");
+	strcpy(ob->shape[0],"@@");
+	strcpy(ob->shape[1],"XX");
 
 
 
-	InitPos(ob,(ob->win->cols - ob->width) / 2,(ob->win->rows - ob->height)/ 2);
+	InitPos(ob,(ob->win->cols - ob->width) / 2,(ob->win->rows - ob->height) - 1 );
 	ob->xmin   = 1;
 	ob->xmax   = w->cols - 1;
 	ob->ymin   = 1;
@@ -271,33 +277,30 @@ OBJ* InitCar(WIN* w, int col)
 	ob->xmax   = w->cols - 1;
 	ob->ymin   = 1;
 	ob->ymax   = w->rows - 1;
-	InitPos(ob, 20,20); //ob->xmin, ob->ymin);
+	InitPos(ob, 2,19); //ob->xmin, ob->ymin); //testing so far
 	return ob;
 }
 
-
-
-//////
 void ShowTimer(WIN* W, float pass_time)
 {
 	mvwprintw(W->window,1,9,"%.2f",pass_time);
 	wrefresh(W->window);
 }
 
-
+//calling show function twice isnt the best but i will fix it latter 
 void MoveFrog(OBJ* ob, char ch, unsigned int frame)
 {
 	if (frame - ob->mv >= MVC_FACTOR)
 	{
 		switch( ch ) {
-			case 'w': Show(ob,0,-1);	break;
-			case 's': Show(ob,0,1); 	break;
-			case 'a': Show(ob,-1,0);	break;
-			case 'd': Show(ob,1,0);		break;
-			case 'q': Show(ob,-1,-1);	break;
-			case 'e': Show(ob,-1,-1);	break;
-			case 'z': Show(ob,-1,1);	break;
-			case 'c': Show(ob,1,1);
+			case 'w': Show(ob,0,-1);Show(ob,0,-1);	break;
+			case 's': Show(ob,0,1);Show(ob,0,1);	break;
+			case 'a': Show(ob,-1,0);Show(ob,-1,0);	break;
+			case 'd': Show(ob,1,0);Show(ob,1,0);		break;
+			case 'q': Show(ob,-1,-1);Show(ob,-1,-1);	break;
+			case 'e': Show(ob,1,-1);Show(ob,1,-1);	break;
+			case 'z': Show(ob,-1,1);Show(ob,-1,1);	break;
+			case 'c': Show(ob,1,1);Show(ob,1,1);
 		}
 		ob->mv = frame;
 	}
@@ -355,6 +358,35 @@ int MainLoop(WIN* status, OBJ* frog, OBJ* car, TIMER* timer) 			// 1: timer is o
 	return 0;
 }
 
+void rColorChange(WINDOW* win, int row, int color_pair) {
+   
+    wattron(win, COLOR_PAIR(color_pair));
+    int cols = getmaxx(win); // Get the number of columns in the window
+    for (int col = 1; col < cols - 1; col++) {    //if widow is from (0 to n) it will color (1 to n-1)
+        mvwprintw(win, row, col, " ");
+    }
+
+    wattroff(win, COLOR_PAIR(color_pair));
+    wrefresh(win);
+}
+
+// input -> window playable , lvl to generate, probability of green 
+void lvlGen(WIN* W, int lvlChoice, int grProb)
+{
+	int num = 0; 
+	int lastGr = 0;     // 1 if last generated is green 
+						// 0 if is street  - generated from the top so lastGr=1
+	for(int i = 3; i < W->rows - 3; i+=2)
+	{
+		num = RA(i,99);
+		if(num%grProb!=0)			//if
+		{
+			rColorChange(W->window, i, CAR_COLOR);
+			rColorChange(W->window, i+1, CAR_COLOR);
+		}
+	}
+}
+
 int main()
 {
 	WINDOW *mainwin = Start();
@@ -363,7 +395,12 @@ int main()
 
 	WIN* playwin = Init(mainwin, ROWS, COLS, OFFY, OFFX, PLAY_COLOR, BORDER, DELAY_ON);
 	WIN* statwin = Init(mainwin, 3, COLS, ROWS+OFFY, OFFX, STAT_COLOR, BORDER, DELAY_OFF);
-	Menu(playwin);
+	int lvlChoice=0;
+	lvlChoice = Menu(playwin);
+	mvwprintw(statwin->window,1,1, "%d", lvlChoice);
+	wrefresh(statwin->window);
+
+	if(lvlChoice == 1) lvlGen(playwin, 1, 3);
 
 	OBJ* frog = InitFrog(playwin,FROG_COLOR);
 	OBJ* car = InitCar(playwin,CAR_COLOR);
