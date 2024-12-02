@@ -230,7 +230,7 @@ void EndGame(const char* info, WIN* W)						// sth at the end
 
 OBJ* InitFrog(WIN* w, int col)
 {
-//	OBJ* ob    = new OBJ;								// C++
+
 	OBJ* ob	   = (OBJ*)malloc(sizeof(OBJ));						// C
 	ob->bflag  = 1;									// normal colors (initially)
 	ob->color  = col;
