@@ -279,8 +279,8 @@ OBJ* InitCar(WIN* w, int col, int spawnCol, int spawnRow)
 	for(int i = 0; i < ob->height; i++)
 		ob->shape[i] = (char*)malloc(sizeof(char) * (ob->width + 1));		// +1: end-of-string (C): '\0'
 
-	strcpy(ob->shape[0],"[OO>");
-	strcpy(ob->shape[1],"[OO>");
+	strcpy(ob->shape[0],"[OO]");
+	strcpy(ob->shape[1],"[OO]");
 
 	ob->xmin   = 1;
 	ob->xmax   = w->cols - 1;
@@ -393,8 +393,10 @@ void carGen(WIN* W, int* isRoad)
 {
 	for(int i = 3; i < W->rows - 3; i+=2)
 	{
-		if(*(isRoad + i) == 1)Show(InitCar(W,CAR_COLOR,RA(1,COLS-3),i), 0, 0);
-
+		if(*(isRoad + i) == 1){
+			Show(InitCar(W,CAR_COLOR,RA(1,(COLS-4)/2),i), 0, 0);
+			Show(InitCar(W,CAR_COLOR,RA((COLS-4)/2,COLS-4),i), 0, 0);
+		}
 	}
 }
 
@@ -465,7 +467,9 @@ int main()
 	//for lvl 1 -> seed 3, for 2 -> 5 ect
 	lvlGen(playwin,isRoad, 2*lvlChoice+1);
 
-	carGen(playwin,isRoad);
+
+	//cars are generated when IsRoad = 1
+	carGen(playwin,isRoad); 
 
 	OBJ* frog = InitFrog(playwin,FROG_COLOR);
 	OBJ* car = InitCar(playwin,CAR_COLOR,7,7);
