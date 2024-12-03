@@ -171,23 +171,23 @@ void Show(OBJ* ob, int dx, int dy)		// move: +-1 in both directions: dy,dx: -1,0
 	wattron(ob->win->window,COLOR_PAIR(ob->color));
 	
 
-	if ((dy == 1) && (ob->y + ob->height < ob->ymax))
+	if ((dy >= 1) && (ob->y + ob->height < ob->ymax))
 	{
 		ob->y += dy;
 		mvwprintw(ob->win->window, ob->y-1, ob->x,sw);
 	}
-	if ((dy ==-1) && (ob->y > ob->ymin))
+	if ((dy <=-1) && (ob->y > ob->ymin))
 	{
 		ob->y += dy;
 		mvwprintw(ob->win->window, ob->y+ob->height, ob->x,sw);
 	}
 
-	if ((dx == 1) && (ob->x + ob->width < ob->xmax))
+	if ((dx >= 1) && (ob->x + ob->width < ob->xmax))
 	{
 		ob->x += dx;
 		for(int i = 0; i < ob->height; i++) mvwprintw(ob->win->window, ob->y+i, ob->x-1," ");
 	}
-	if ((dx ==-1) && (ob->x > ob->xmin))
+	if ((dx <=-1) && (ob->x > ob->xmin))
 	{
 		ob->x += dx;
 		for(int i = 0; i < ob->height; i++) mvwprintw(ob->win->window, ob->y+i, ob->x+ob->width," ");
@@ -293,14 +293,14 @@ void MoveFrog(OBJ* ob, char ch, unsigned int frame)
 	if (frame - ob->mv >= MVC_FACTOR)
 	{
 		switch( ch ) {
-			case 'w': Show(ob,0,-1);Show(ob,0,-1);	break;
-			case 's': Show(ob,0,1);Show(ob,0,1);	break;
-			case 'a': Show(ob,-1,0);Show(ob,-1,0);	break;
-			case 'd': Show(ob,1,0);Show(ob,1,0);		break;
-			case 'q': Show(ob,-1,-1);Show(ob,-1,-1);	break;
-			case 'e': Show(ob,1,-1);Show(ob,1,-1);	break;
-			case 'z': Show(ob,-1,1);Show(ob,-1,1);	break;
-			case 'c': Show(ob,1,1);Show(ob,1,1);
+			case 'w': Show(ob,0,-2);	break;
+			case 's': Show(ob,0,2);		break;
+			case 'a': Show(ob,-2,0);	break;
+			case 'd': Show(ob,2,0);		break;
+			case 'q': Show(ob,-2,-2);	break;
+			case 'e': Show(ob,2,-2);	break;
+			case 'z': Show(ob,-2,2);	break;
+			case 'c': Show(ob,2,2);
 		}
 		ob->mv = frame;
 	}
@@ -334,30 +334,6 @@ int UpdateTimer(TIMER* T, WIN* status)							// return 1: time is over; otherwis
 	if (T->pass_time == 0) return 1;
 	return 0;
 }
-
-int MainLoop(WIN* status, OBJ* frog, OBJ* car, TIMER* timer) 			// 1: timer is over, 0: quit the game
-{
-	int ch;
-	int pts = 0;
-	while ( (ch = wgetch(status->window)) != QUIT )					// NON-BLOCKING! (nodelay=TRUE)
-	{
-		if (ch == ERR) ch = NOKEY;						// ERR is ncurses predefined
-		/* change background or move; update status */
-		else
-		{
-			if (ch == 'b') {  Show(frog,0,0); }
-			else MoveFrog(frog, ch, timer->frame_no);
-		}
-		if(Collision(frog , car))
-			mvwaddstr(status->window, 1, 1, "are you stupid?");
-		
-		flushinp();                     					// clear input buffer (avoiding multiple key pressed)
-		/* update timer */
-		if (UpdateTimer(timer,status)) return pts;				// sleep inside
-	}
-	return 0;
-}
-
 void rColorChange(WINDOW* win, int row, int color_pair) {
    
     wattron(win, COLOR_PAIR(color_pair));
@@ -369,23 +345,75 @@ void rColorChange(WINDOW* win, int row, int color_pair) {
     wattroff(win, COLOR_PAIR(color_pair));
     wrefresh(win);
 }
-
-// input -> window playable , lvl to generate, probability of green 
-void lvlGen(WIN* W, int lvlChoice, int grProb)
+// input -> window playable , lvl to generate from randNum, probability of green 
+void lvlGen(WIN* W, int* isRoad, int grProb)
 {
-	int num = 0; 
 	int lastGr = 0;     // 1 if last generated is green 
-						// 0 if is street  - generated from the top so lastGr=1
+	int num = 0;					// 0 if is street  - generated from the top so lastGr=1
 	for(int i = 3; i < W->rows - 3; i+=2)
 	{
-		num = RA(i,99);
+		num = RA(i,99-i);
 		if(num%grProb!=0)			//if
+		{
+			*(isRoad + i) = 1;
+			rColorChange(W->window, i, CAR_COLOR);
+			rColorChange(W->window, i+1, CAR_COLOR);
+		}else{
+			*(isRoad + i)= 0;
+		}
+	}
+}
+
+void lvlRepaint(WIN* W, int* isRoad)
+{
+	for(int i = 1; i < W->rows - 2; i+=2)
+	{
+		if(*(isRoad+i) == 1)			//if
 		{
 			rColorChange(W->window, i, CAR_COLOR);
 			rColorChange(W->window, i+1, CAR_COLOR);
 		}
+		else{
+			rColorChange(W->window, i, PLAY_COLOR);
+			rColorChange(W->window, i+1, PLAY_COLOR);
+		}
 	}
+
 }
+
+int MainLoop(WIN* status, WIN* W,int* isRoad, OBJ* frog, OBJ* car, TIMER* timer) 			// 1: timer is over, 0: quit the game
+{
+	int ch;
+	int pts = 0;
+	
+	while ( (ch = wgetch(status->window)) != QUIT )					// NON-BLOCKING! (nodelay=TRUE)
+	{
+		if (ch == ERR) ch = NOKEY;						// ERR is ncurses predefined
+		/* change background or move; update status */
+		else
+		{	
+			if (ch == 'b') {  Show(frog,0,0); }
+			else {
+				MoveFrog(frog, ch, timer->frame_no);	//moves frog->repaints the road->show frog
+				lvlRepaint(W,isRoad);					//if not, frog will be lika a snail, leaving blank
+				Show(frog,0,0);							//spaces after moving
+			}
+		}
+		if(Collision(frog , car))
+			mvwaddstr(status->window, 1, 1, "are you stupid?");
+
+		
+		
+		flushinp();                     					// clear input buffer (avoiding multiple key pressed)
+		/* update timer */
+		if (UpdateTimer(timer,status)) return pts;				// sleep inside
+	}
+	return 0;
+}
+
+
+
+
 
 int main()
 {
@@ -400,7 +428,8 @@ int main()
 	mvwprintw(statwin->window,1,1, "%d", lvlChoice);
 	wrefresh(statwin->window);
 
-	if(lvlChoice == 1) lvlGen(playwin, 1, 3);
+	int isRoad[ROWS];
+	if(lvlChoice == 1) lvlGen(playwin,isRoad, 3);
 
 	OBJ* frog = InitFrog(playwin,FROG_COLOR);
 	OBJ* car = InitCar(playwin,CAR_COLOR);
@@ -410,7 +439,7 @@ int main()
 	////
 	TIMER* timer = InitTimer(statwin);
 	int result;
-	if ( (result = MainLoop(statwin, frog, car, timer)) == 0)  EndGame("You have decided to quit the game.",statwin);
+	if ( (result = MainLoop(statwin,playwin, isRoad,frog, car, timer)) == 0)  EndGame("You have decided to quit the game.",statwin);
 
 	getch();
 
