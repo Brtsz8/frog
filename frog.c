@@ -1,3 +1,4 @@
+//mima
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +29,7 @@
 
 #define ENTER 10
 // playwin (WIN) parameters
-#define ROWS		26							
+#define ROWS		36							
 #define COLS		60
 #define OFFY		4
 #define OFFX		8
@@ -66,6 +67,11 @@ typedef struct {
 	float pass_time;
 	int frame_no;
 } TIMER;
+
+typedef struct{
+	int lane;			//count from the top
+	int pos;
+}CAR;
 
 //////////////////////////////////
 //////////////Functions//////////
@@ -259,7 +265,7 @@ OBJ* InitFrog(WIN* w, int col)
 	return ob;
 }
 
-OBJ* InitCar(WIN* w, int col)
+OBJ* InitCar(WIN* w, int col, int spawnCol, int spawnRow)
 {
 	OBJ* ob	   = (OBJ*)malloc(sizeof(OBJ));						// C
 	ob->bflag  = 1;
@@ -280,7 +286,7 @@ OBJ* InitCar(WIN* w, int col)
 	ob->xmax   = w->cols - 1;
 	ob->ymin   = 1;
 	ob->ymax   = w->rows - 1;
-	InitPos(ob, 2,19); //ob->xmin, ob->ymin); //testing so far
+	InitPos(ob, spawnCol,spawnRow); //ob->xmin, ob->ymin); //testing so far
 	return ob;
 }
 
@@ -355,19 +361,43 @@ void lvlGen(WIN* W, int* isRoad, int grProb)
 	int lastGr = 0;     // 1 if last generated is green 
 	int num = 0;		// 0 if is street  - generated from the top so lastGr=1
 
+	OBJ* car [30];
+
 	for(int i = 3; i < W->rows - 3; i+=2)
 	{
 		num = RA(i,99-i);
-		if(num%grProb!=0)			//if
+		if(lastGr){
+			*(isRoad + i) = 1;
+			rColorChange(W->window, i, CAR_COLOR);
+			rColorChange(W->window, i+1, CAR_COLOR);
+			//car [(i-1)/2]= InitCar(W,CAR_COLOR,RA(1,COLS-3),i);
+			//Show(car[(i-1)/2] , 0, 0);
+			lastGr=0;
+			continue;
+		}
+		if(num%grProb!=0)			
 		{
 			*(isRoad + i) = 1;
 			rColorChange(W->window, i, CAR_COLOR);
 			rColorChange(W->window, i+1, CAR_COLOR);
+			//car [(i-1)/2]= InitCar(W,CAR_COLOR,RA(1,COLS-3),i);
+			//Show(car[(i-1)/2] , 0, 0);
 		}else{
 			*(isRoad + i)= 0;
+			lastGr=1;
 		}
 	}
 }
+
+void carGen(WIN* W, int* isRoad)
+{
+	for(int i = 3; i < W->rows - 3; i+=2)
+	{
+		if(*(isRoad + i) == 1)Show(InitCar(W,CAR_COLOR,RA(1,COLS-3),i), 0, 0);
+
+	}
+}
+
 
 void lvlRepaint(WIN* W, int* isRoad)
 {
@@ -377,6 +407,7 @@ void lvlRepaint(WIN* W, int* isRoad)
 		{
 			rColorChange(W->window, i, CAR_COLOR);
 			rColorChange(W->window, i+1, CAR_COLOR);
+			//Show(InitCar(W,CAR_COLOR,2+i,i),0,0);
 		}
 		else{
 			rColorChange(W->window, i, PLAY_COLOR);
@@ -416,10 +447,6 @@ int MainLoop(WIN* status, WIN* W,int* isRoad, OBJ* frog, OBJ* car, TIMER* timer)
 	return 0;
 }
 
-
-
-
-
 int main()
 {
 	WINDOW *mainwin = Start();
@@ -433,14 +460,17 @@ int main()
 	mvwprintw(statwin->window,1,1, "%d", lvlChoice);
 	wrefresh(statwin->window);
 
+	//1 -> road , 0-> grass
 	int isRoad[ROWS];
-	if(lvlChoice == 1) lvlGen(playwin,isRoad, 3);
+	//for lvl 1 -> seed 3, for 2 -> 5 ect
+	lvlGen(playwin,isRoad, 2*lvlChoice+1);
+
+	carGen(playwin,isRoad);
 
 	OBJ* frog = InitFrog(playwin,FROG_COLOR);
-	OBJ* car = InitCar(playwin,CAR_COLOR);
+	OBJ* car = InitCar(playwin,CAR_COLOR,7,7);
 	Show(frog,0,0);
-	Show(car,0,0);
-
+	//Show(car,0,0);
 	////
 	TIMER* timer = InitTimer(statwin);
 	int result;
