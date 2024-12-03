@@ -162,8 +162,9 @@ void Print(OBJ* ob)
 		mvwprintw(ob->win->window, ob->y+i, ob->x,ob->shape[i]);
 }
 
-										// common function for both: Catcher and Ball
-void Show(OBJ* ob, int dx, int dy)		// move: +-1 in both directions: dy,dx: -1,0,1
+//function modified so dx,dy can be any whole number
+//f.e. for frog dx,dy usually is one of -2,0,2
+void Show(OBJ* ob, int dx, int dy)		
 {
 	char *sw = (char*)malloc(sizeof(char) * ob->width);
 	memset(sw,' ',ob->width);
@@ -211,13 +212,15 @@ WIN* Init(WINDOW* parent, int rows, int cols, int y, int x, int color, int bo, i
 	return W;
 }
 
-void InitPos(OBJ* ob, int xs, int ys)
+void InitPos(OBJ* ob, int xs, int ys)	
 {
 	ob->x = xs;
 	ob->y = ys;
 }
 
-void EndGame(const char* info, WIN* W)						// sth at the end
+
+//TO DO LATER !!!!/////
+void EndGame(const char* info, WIN* W)					
 {
 	CleanWin(W,1);
 	for(int i = QUIT_TIME; i > 0; i--)
@@ -231,8 +234,8 @@ void EndGame(const char* info, WIN* W)						// sth at the end
 OBJ* InitFrog(WIN* w, int col)
 {
 
-	OBJ* ob	   = (OBJ*)malloc(sizeof(OBJ));						// C
-	ob->bflag  = 1;									// normal colors (initially)
+	OBJ* ob	   = (OBJ*)malloc(sizeof(OBJ));
+	ob->bflag  = 1;									
 	ob->color  = col;
 	ob->win    = w;
 	ob->width  = 2;
@@ -287,7 +290,8 @@ void ShowTimer(WIN* W, float pass_time)
 	wrefresh(W->window);
 }
 
-//calling show function twice isnt the best but i will fix it latter 
+//calling show function twice isnt the best but i will fix it latter
+//fixed , tests optional  
 void MoveFrog(OBJ* ob, char ch, unsigned int frame)
 {
 	if (frame - ob->mv >= MVC_FACTOR)
@@ -305,7 +309,7 @@ void MoveFrog(OBJ* ob, char ch, unsigned int frame)
 		ob->mv = frame;
 	}
 }
-int Collision(OBJ* c, OBJ* b)								// collision of two boxes
+int Collision(OBJ* c, OBJ* b)								// collision of two objects
 {
 	if ( ((c->y >= b->y && c->y < b->y+b->height) || (b->y >= c->y && b->y < c->y+c->height)) &&
 	    ((c->x >= b->x && c->x < b->x+b->width) || (b->x >= c->x && b->x < c->x+c->width)) )
@@ -313,7 +317,7 @@ int Collision(OBJ* c, OBJ* b)								// collision of two boxes
 	else 	return 0;
 }
 
-void Sleep(unsigned int tui) { usleep(tui * 1000); } 					// micro_sec = frame_time * 1000
+void Sleep(unsigned int tui) { usleep(tui * 1000); } 		// micro_sec = frame_time * 1000
 
 TIMER* InitTimer(WIN* status)
 {
@@ -349,7 +353,8 @@ void rColorChange(WINDOW* win, int row, int color_pair) {
 void lvlGen(WIN* W, int* isRoad, int grProb)
 {
 	int lastGr = 0;     // 1 if last generated is green 
-	int num = 0;					// 0 if is street  - generated from the top so lastGr=1
+	int num = 0;		// 0 if is street  - generated from the top so lastGr=1
+
 	for(int i = 3; i < W->rows - 3; i+=2)
 	{
 		num = RA(i,99-i);
