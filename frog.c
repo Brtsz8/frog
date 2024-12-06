@@ -69,6 +69,8 @@ typedef struct {
 	int frame_no;
 } TIMER;
 
+
+//im not sure if i evere used it??? 
 typedef struct{
 	int id;
 	int lane;			//count from the top
@@ -202,7 +204,8 @@ void Show(OBJ* ob, int dx, int dy)
 			//cars move 1 to the right but frog dont, so cars only need one 
 			//space painted before them 
 			//thing above might be not optimal solution but it works
-		} 
+			//will not work when car movement reversed 
+		}
 	}
 	if ((dx <=-1) && (ob->x > ob->xmin))
 	{
@@ -311,7 +314,7 @@ void ShowTimer(WIN* W, float pass_time)
 
 //calling show function twice isnt the best but i will fix it latter
 //fixed , tests optional  
-void MoveFrog(OBJ* ob, char ch, unsigned int frame)
+void MoveFrog(OBJ* ob, char ch, unsigned int frame,int* isRoad)
 {
 	if (frame - ob->mv >= MVC_FACTOR)
 	{
@@ -495,17 +498,21 @@ int MainLoop(WIN* status, WIN* W,int* isRoad, OBJ* frog, OBJ** cars, TIMER* time
 		{	
 			if (ch == 'b') {  Show(frog,0,0); }
 			else {
-				MoveFrog(frog, ch, timer->frame_no);	//moves frog->repaints the road->show frog
-				//lvlRepaint(W,isRoad);					//if not, frog will be lika a snail, leaving blank
-				Show(frog,0,0);							//spaces after moving
+				MoveFrog(frog, ch, timer->frame_no, isRoad);
+				Show(frog,0,0);	
 			}
 		}
-		//if(Collision(frog , car))
-		//	mvwaddstr(status->window, 1, 1, "are you stupid?");
 		
-		for(int i =0; i<roadCount; i++)
+		//moves the car and checks for collison 
+		//for now it returns to the main screen 
+		//but some sort of end screen shoul be added 
+		for(int i =0; i<roadCount; i++){
 			MoveCar(cars[i],1,timer->frame_no);
-
+			if(Collision(frog , cars[i]))
+				return 0;
+		}
+			
+	
 		flushinp();                     					// clear input buffer (avoiding multiple key pressed)
 		/* update timer */
 		if (UpdateTimer(timer,status)) return pts;				// sleep inside
@@ -523,7 +530,8 @@ int main()
 	Welcome(mainwin);
 
 	WIN* playwin = Init(mainwin, ROWS, COLS, OFFY, OFFX, PLAY_COLOR, BORDER, DELAY_ON);
-	WIN* statwin = Init(mainwin, 3, COLS, ROWS+OFFY, OFFX, STAT_COLOR, BORDER, DELAY_OFF);
+	WIN* statwin = Init(mainwin, 5, COLS, ROWS+OFFY, OFFX, STAT_COLOR, BORDER, DELAY_OFF);
+	
 	int lvlChoice=0;
 	while(1){
 		lvlChoice = Menu(playwin);
