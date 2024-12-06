@@ -8,7 +8,7 @@
 
 #define FRAME_TIME	60
 #define PASS_TIME	20
-#define MVB_FACTOR	2						// move every FRAME_TIME * MVB_FACTOR [ms] BALL
+#define MVB_FACTOR	1						// move every FRAME_TIME * MVB_FACTOR [ms] BALL
 #define MVC_FACTOR	5	
 
 #define QUIT_TIME	3
@@ -198,7 +198,10 @@ void Show(OBJ* ob, int dx, int dy)
 		ob->x += dx;
 		for(int i = 0; i < ob->height; i++){
 			mvwprintw(ob->win->window, ob->y+i, ob->x-1," ");
-			mvwprintw(ob->win->window, ob->y+i, ob->x-2," ");
+			if(ob->width==2)mvwprintw(ob->win->window, ob->y+i, ob->x-2," "); 
+			//cars move 1 to the right but frog dont, so cars only need one 
+			//space painted before them 
+			//thing above might be not optimal solution but it works
 		} 
 	}
 	if ((dx <=-1) && (ob->x > ob->xmin))
@@ -277,13 +280,13 @@ OBJ* InitFrog(WIN* w, int col)
 
 OBJ* InitCar(WIN* w, int col, int spawnCol, int spawnRow)
 {
-	OBJ* ob	   = (OBJ*)malloc(sizeof(OBJ));						// C
+	OBJ* ob	   = (OBJ*)malloc(sizeof(OBJ));						
 	ob->bflag  = 1;
 	ob->color  = col;
 	ob->win    = w;
 	ob->width  = 4;
 	ob->height = 2;
-	ob->mv     = MVB_FACTOR;
+	ob->mv     = RA(MVB_FACTOR,MVB_FACTOR+2);
 
 	ob->shape = (char**)malloc(sizeof(char*) * ob->height);				// array of pointers (char*)
 	for(int i = 0; i < ob->height; i++)
@@ -293,9 +296,9 @@ OBJ* InitCar(WIN* w, int col, int spawnCol, int spawnRow)
 	strcpy(ob->shape[1],"[OO]");
 
 	ob->xmin   = 1;
-	ob->xmax   = w->cols ;
+	ob->xmax   = w->cols -1;
 	ob->ymin   = 1;
-	ob->ymax   = w->rows ;
+	ob->ymax   = w->rows -1;
 	InitPos(ob, spawnCol,spawnRow); //ob->xmin, ob->ymin); //testing so far
 	return ob;
 }
@@ -343,11 +346,22 @@ void MoveCar(OBJ* ob, int Cx, int frame)
 {
 	
 	int dx = 0;
+	
 	if (frame % ob->mv == 0)							// every ob->mv-th frame make a move
 	{
 		dx = Cx;										
+		if(ob->x+ob->width==COLS-1){	
+			wattron(ob->win->window, COLOR_PAIR(CAR_COLOR));
+			mvwprintw(ob->win->window, ob->y+1, COLS-5,"    ");        
+			mvwprintw(ob->win->window, ob->y, COLS-5,"    ");
+			wattroff(ob->win->window, COLOR_PAIR(CAR_COLOR));
+			Show(ob,ob->width+2-COLS,0);
 
-		Show(ob,dx%COLS,0);
+			//randomly assigns new speed to the car when car reaches the end
+			ob->mv= RA(MVB_FACTOR,MVB_FACTOR+2);
+		}
+		else Show(ob,dx,0);
+		
 	}
 }
 int Collision(OBJ* c, OBJ* b)								// collision of two objects
@@ -423,20 +437,19 @@ void lvlGen(WIN* W, int* isRoad, int grProb)
 OBJ** carGen(WIN* W, int* isRoad, int numCars)
 {
 	//array of pointers to OBJ
-	OBJ** cars = malloc(numCars * sizeof(OBJ*));
+	OBJ** cars = malloc((numCars+1) * sizeof(OBJ*));
 
 	int toSpawn = numCars;
 	int i = 0;
 	
 	while(toSpawn)
 	{
-		//setting up memory for each car object
-		cars[i]=malloc(sizeof(OBJ));
-
 		if(*(isRoad+3+i) == 1)
 		{
-			
+			//setting up memory for each car object
+			cars[numCars-toSpawn]=malloc(sizeof(OBJ));
 			OBJ* car= InitCar(W,CAR_COLOR,RA(1,(COLS-4)/2),i+3);
+			//cars index go from 0 to carNum
 			cars[numCars-toSpawn] = car; 
 			Show(cars[numCars-toSpawn],0,0);
 			toSpawn--; 
@@ -463,9 +476,6 @@ void lvlRepaint(WIN* W, int* isRoad)
 			rColorChange(W->window, i+1, PLAY_COLOR);
 		}
 	}
-
-	
-
 }
 
 int MainLoop(WIN* status, WIN* W,int* isRoad, OBJ* frog, OBJ** cars, TIMER* timer) 			// 1: timer is over, 0: quit the game
@@ -476,7 +486,6 @@ int MainLoop(WIN* status, WIN* W,int* isRoad, OBJ* frog, OBJ** cars, TIMER* time
 	int roadCount = 0;
 	for(int i =0; i<ROWS; i++)
 		if(isRoad[i]==1) roadCount++;
-
 	
 	while ( (ch = wgetch(status->window)) != QUIT )					// NON-BLOCKING! (nodelay=TRUE)
 	{
@@ -488,15 +497,14 @@ int MainLoop(WIN* status, WIN* W,int* isRoad, OBJ* frog, OBJ** cars, TIMER* time
 			else {
 				MoveFrog(frog, ch, timer->frame_no);	//moves frog->repaints the road->show frog
 				//lvlRepaint(W,isRoad);					//if not, frog will be lika a snail, leaving blank
-
 				Show(frog,0,0);							//spaces after moving
 			}
 		}
 		//if(Collision(frog , car))
 		//	mvwaddstr(status->window, 1, 1, "are you stupid?");
 		
-		//for(int i =0; i<=roadCount; i++)
-		MoveCar(cars[1],1,timer->frame_no);
+		for(int i =0; i<roadCount; i++)
+			MoveCar(cars[i],1,timer->frame_no);
 
 		flushinp();                     					// clear input buffer (avoiding multiple key pressed)
 		/* update timer */
@@ -519,7 +527,6 @@ int main()
 	int lvlChoice=0;
 	while(1){
 		lvlChoice = Menu(playwin);
-		//mvwprintw(statwin->window,1,1, "%d", lvlChoice);
 		wrefresh(statwin->window);
 
 		//1 -> road , 0-> grass
@@ -528,9 +535,11 @@ int main()
 		lvlGen(playwin,isRoad, 2*lvlChoice+1);
 
 		//returns array of objects - cars , and shows them initially 
-		OBJ** cars = carGen(playwin,isRoad,11);
-		//cars are generated when IsRoad = 1
-		//carGen(playwin,isRoad); 
+		int roadCount = 0;
+		for(int i =0; i<ROWS; i++)
+			if(isRoad[i]==1) roadCount++;
+		int numCars = roadCount;
+		OBJ** cars = carGen(playwin,isRoad,numCars);
 
 		OBJ* frog = InitFrog(playwin,FROG_COLOR);
 		Show(frog,0,0);
