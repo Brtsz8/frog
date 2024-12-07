@@ -199,8 +199,8 @@ void Show(OBJ* ob, int dx, int dy)
 	{
 		ob->x += dx;
 		for(int i = 0; i < ob->height; i++){
-			mvwprintw(ob->win->window, ob->y+i, ob->x-1," ");
-			if(ob->width==2)mvwprintw(ob->win->window, ob->y+i, ob->x-2," "); 
+			if(ob->width!=2)mvwprintw(ob->win->window, ob->y+i, ob->x-1," ");
+			//if(ob->width==2)mvwprintw(ob->win->window, ob->y+i, ob->x-2," "); 
 			//cars move 1 to the right but frog dont, so cars only need one 
 			//space painted before them 
 			//thing above might be not optimal solution but it works
@@ -210,10 +210,10 @@ void Show(OBJ* ob, int dx, int dy)
 	if ((dx <=-1) && (ob->x > ob->xmin))
 	{
 		ob->x += dx;
-		for(int i = 0; i < ob->height; i++){
+		/*for(int i = 0; i < ob->height; i++){
 			mvwprintw(ob->win->window, ob->y+i, ob->x+ob->width," ");
 			mvwprintw(ob->win->window, ob->y+i, ob->x+ob->width+1," ");
-		}
+		}*/
 	}
 
 	Print(ob);
@@ -241,16 +241,18 @@ void InitPos(OBJ* ob, int xs, int ys)
 }
 
 
-//TO DO LATER !!!!/////
+
 void EndGame(const char* info, WIN* W)					
 {
 	CleanWin(W,1);
 	for(int i = QUIT_TIME; i > 0; i--)
 	{
-		mvwprintw(W->window,1,2,"%s Closing the game in %d seconds...",info,i);
+		mvwprintw(W->window,1,2,"%s",info);
+		mvwprintw(W->window,2,2,"Closing the game in %d seconds...",i);
 		wrefresh(W->window);
 		sleep(1);
 	}
+	
 }
 
 OBJ* InitFrog(WIN* w, int col)
@@ -312,34 +314,74 @@ void ShowTimer(WIN* W, float pass_time)
 	wrefresh(W->window);
 }
 
+void wMove(OBJ* ob, int colorPair)
+{
+	Show(ob,0,-2);
+	wattron(ob->win->window,COLOR_PAIR(colorPair));
+	mvwprintw(ob->win->window, ob->y+2, ob->x,"  ");
+	mvwprintw(ob->win->window, ob->y+3, ob->x,"  ");
+	wattroff(ob->win->window, COLOR_PAIR(colorPair));
+}
+void sMove(OBJ* ob, int colorPair)
+{
+	Show(ob,0,2);
+	wattron(ob->win->window,COLOR_PAIR(colorPair));
+	mvwprintw(ob->win->window, ob->y-1, ob->x,"  ");
+	mvwprintw(ob->win->window, ob->y-2, ob->x,"  ");
+	wattroff(ob->win->window, COLOR_PAIR(colorPair));
+}
+
 //calling show function twice isnt the best but i will fix it latter
 //fixed , tests optional  
 void MoveFrog(OBJ* ob, char ch, unsigned int frame,int* isRoad)
 {
+	int colorPair;
+	int mvFrom = 0;
+	if(ob->y==1) mvFrom=0;   	//y=2 is a top row so it must be grass
+	else if(ob->y==ROWS-3) mvFrom=0; //almost sure this one is first row from bottom
+	else if(isRoad[ob->y]==1) mvFrom=1;
+	
 	if (frame - ob->mv >= MVC_FACTOR)
 	{
+		colorPair = (mvFrom == 1) ? CAR_COLOR : FROG_COLOR;
+		
+		//mvFrom indicates color of coords from which frog is moving 
+		//1 for road  /  0 for grass
 		switch( ch ) {
-			case 'w': Show(ob,0,-2);	break;
-			case 's': Show(ob,0,2);		break;
+			case 'w': wMove(ob,colorPair);	break;
+			case 's': sMove(ob,colorPair);  break;
 			case 'a':
 				if(ob->x==1)
 				{								//in case frogs in the left corner it moves frog to
 					Show(ob,COLS-4,0);			//right corner and repaints the left corner
+					wattron(ob->win->window,COLOR_PAIR(colorPair));
 					mvwprintw(ob->win->window, ob->y+1, 1,"  ");
 					mvwprintw(ob->win->window, ob->y, 1,"  ");
 				}	
-				else Show(ob,-2,0);	
+				else{
+					Show(ob,-2,0);	
+					wattron(ob->win->window,COLOR_PAIR(colorPair));
+					mvwprintw(ob->win->window, ob->y, ob->x+2,"  ");
+					mvwprintw(ob->win->window, ob->y+1, ob->x+2,"  ");
+				}
 				break;
 			case 'd': 
 				if(ob->x+ob->width==COLS-1)		//see coment above, same thing other corner
-				{
-					Show(ob,4-COLS,0);		
+				{									
+					Show(ob,4-COLS,0);	
+					wattron(ob->win->window,COLOR_PAIR(colorPair));
 					mvwprintw(ob->win->window, ob->y+1, COLS-3,"  ");        
 					mvwprintw(ob->win->window, ob->y, COLS-3,"  ");
 				}	 		
-				else Show(ob,2,0);
+				else{
+					Show(ob,2,0);	
+					wattron(ob->win->window,COLOR_PAIR(colorPair));
+					mvwprintw(ob->win->window, ob->y, ob->x-2,"  ");
+					mvwprintw(ob->win->window, ob->y+1, ob->x-2,"  ");
+				}
 				break;		
 		}
+		wattroff(ob->win->window, COLOR_PAIR(colorPair));
 		ob->mv = frame;
 	}
 }
@@ -451,7 +493,7 @@ OBJ** carGen(WIN* W, int* isRoad, int numCars)
 		{
 			//setting up memory for each car object
 			cars[numCars-toSpawn]=malloc(sizeof(OBJ));
-			OBJ* car= InitCar(W,CAR_COLOR,RA(1,(COLS-4)/2),i+3);
+			OBJ* car= InitCar(W,CAR_COLOR,RA(1,(COLS-4)),i+3);
 			//cars index go from 0 to carNum
 			cars[numCars-toSpawn] = car; 
 			Show(cars[numCars-toSpawn],0,0);
@@ -524,8 +566,8 @@ int MainLoop(WIN* status, WIN* W,int* isRoad, OBJ* frog, OBJ** cars, TIMER* time
 
 void setUp(WIN* statwin, int lvlChoice)
 {
-	mvwprintw(statwin->window,1,1,"Time left: ");
-	mvwprintw(statwin->window,2,1,"Level: %d",lvlChoice);
+	if(lvlChoice!=0)	mvwprintw(statwin->window,1,1,"Time left: ");
+	if(lvlChoice!=0)	mvwprintw(statwin->window,2,1,"Level: %d",lvlChoice);
 	mvwprintw(statwin->window,3,statwin->cols/2 - 12,">>Bartosz Pacyga 203833<<");
 	
 	wrefresh(statwin->window);
@@ -543,11 +585,13 @@ int main()
 	
 	int lvlChoice=0;
 	while(1){
+		CleanWin(statwin,1);
+		CleanWin(playwin,1);
+		setUp(statwin, 0);
 		lvlChoice = Menu(playwin);
-		wrefresh(statwin->window);
-		wrefresh(playwin->window);
-
-		setUp(statwin,lvlChoice);
+		setUp(statwin, lvlChoice);
+		//setups status area 
+		
 		//1 -> road , 0-> grass
 		int isRoad[ROWS];
 		//for lvl 1 -> seed 3, for 2 -> 5 ect
@@ -566,9 +610,8 @@ int main()
 		////
 		TIMER* timer = InitTimer(statwin);
 		int result;
-		if ( (result = MainLoop(statwin,playwin, isRoad,frog, cars, timer)) == 0)  EndGame("You have decided to quit the game.",statwin);
-
-		getch();
+		if ( (result = MainLoop(statwin,playwin, isRoad,frog, cars, timer)) == 0)  
+			EndGame("You have decided to quit the game.",statwin);
 	}
 
 	delwin(playwin->window);							// Clean up (!)
