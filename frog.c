@@ -308,7 +308,7 @@ OBJ* InitCar(WIN* w, int col, int spawnCol, int spawnRow)
 
 void ShowTimer(WIN* W, float pass_time)
 {
-	mvwprintw(W->window,1,9,"%.2f",pass_time);
+	mvwprintw(W->window,1,12,"%.2f",pass_time);
 	wrefresh(W->window);
 }
 
@@ -522,6 +522,15 @@ int MainLoop(WIN* status, WIN* W,int* isRoad, OBJ* frog, OBJ** cars, TIMER* time
 	return 0;
 }
 
+void setUp(WIN* statwin, int lvlChoice)
+{
+	mvwprintw(statwin->window,1,1,"Time left: ");
+	mvwprintw(statwin->window,2,1,"Level: %d",lvlChoice);
+	mvwprintw(statwin->window,3,statwin->cols/2 - 12,">>Bartosz Pacyga 203833<<");
+	
+	wrefresh(statwin->window);
+
+}
 
 int main()
 {
@@ -536,7 +545,9 @@ int main()
 	while(1){
 		lvlChoice = Menu(playwin);
 		wrefresh(statwin->window);
+		wrefresh(playwin->window);
 
+		setUp(statwin,lvlChoice);
 		//1 -> road , 0-> grass
 		int isRoad[ROWS];
 		//for lvl 1 -> seed 3, for 2 -> 5 ect
