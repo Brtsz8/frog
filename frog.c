@@ -1,4 +1,5 @@
-//mima
+// sources used: -code from demo game
+//				 -ncurses tutorial (YouTube) by CasualCoder
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,8 +9,8 @@
 
 #define FRAME_TIME	60
 #define PASS_TIME	20
-#define MVB_FACTOR	1						// move every FRAME_TIME * MVB_FACTOR [ms] BALL
-#define MVC_FACTOR	5	
+#define MVC_FACTOR	1						// move every FRAME_TIME * MVC_FACTOR [ms] BALL
+#define MVF_FACTOR	1	
 
 #define QUIT_TIME	3
 #define QUIT		'k'
@@ -255,7 +256,7 @@ void EndGame(const char* info, WIN* W)
 	
 }
 
-OBJ* InitFrog(WIN* w, int col)
+OBJ* InitFrog(WIN* w, int col, char ch)
 {
 
 	OBJ* ob	   = (OBJ*)malloc(sizeof(OBJ));
@@ -269,9 +270,12 @@ OBJ* InitFrog(WIN* w, int col)
 	ob->shape = (char**)malloc(sizeof(char*) * ob->height);				// array of pointers (char*)
 	for(int i = 0; i < ob->height; i++)
 		ob->shape[i] = (char*)malloc(sizeof(char) * (ob->width + 1));		// +1: end-of-string (C): '\0'
-
-	strcpy(ob->shape[0],"@@");
-	strcpy(ob->shape[1],"XX");
+	
+	char frogS[2];
+	frogS[0]=ch;
+	frogS[1]=ch;
+	strcpy(ob->shape[0],frogS);
+	strcpy(ob->shape[1],frogS);
 
 
 
@@ -283,7 +287,7 @@ OBJ* InitFrog(WIN* w, int col)
 	return ob;
 }
 
-OBJ* InitCar(WIN* w, int col, int spawnCol, int spawnRow)
+OBJ* InitCar(WIN* w, int col, int spawnCol, int spawnRow, char carBase)
 {
 	OBJ* ob	   = (OBJ*)malloc(sizeof(OBJ));						
 	ob->bflag  = 1;
@@ -291,14 +295,19 @@ OBJ* InitCar(WIN* w, int col, int spawnCol, int spawnRow)
 	ob->win    = w;
 	ob->width  = 4;
 	ob->height = 2;
-	ob->mv     = RA(MVB_FACTOR,MVB_FACTOR+2);
+	ob->mv     = RA(MVC_FACTOR,MVC_FACTOR+2);
 
 	ob->shape = (char**)malloc(sizeof(char*) * ob->height);				// array of pointers (char*)
 	for(int i = 0; i < ob->height; i++)
 		ob->shape[i] = (char*)malloc(sizeof(char) * (ob->width + 1));		// +1: end-of-string (C): '\0'
-
-	strcpy(ob->shape[0],"[OO]");
-	strcpy(ob->shape[1],"[OO]");
+	
+	char carS[4] ;
+	carS[0] = '[';
+	carS[1] = carBase;
+	carS[2] = carBase;
+	carS[3] = ']';
+	strcpy(ob->shape[0],carS);
+	strcpy(ob->shape[1],carS);
 
 	ob->xmin   = 1;
 	ob->xmax   = w->cols -1;
@@ -314,6 +323,8 @@ void ShowTimer(WIN* W, float pass_time)
 	wrefresh(W->window);
 }
 
+
+//next two functions are here cause of 2^10 limit 
 void wMove(OBJ* ob, int colorPair)
 {
 	Show(ob,0,-2);
@@ -341,7 +352,7 @@ void MoveFrog(OBJ* ob, char ch, unsigned int frame,int* isRoad)
 	else if(ob->y==ROWS-3) mvFrom=0; //almost sure this one is first row from bottom
 	else if(isRoad[ob->y]==1) mvFrom=1;
 	
-	if (frame - ob->mv >= MVC_FACTOR)
+	if (frame - ob->mv >= MVF_FACTOR)
 	{
 		colorPair = (mvFrom == 1) ? CAR_COLOR : FROG_COLOR;
 		
@@ -386,7 +397,6 @@ void MoveFrog(OBJ* ob, char ch, unsigned int frame,int* isRoad)
 	}
 }
 
-
 void MoveCar(OBJ* ob, int Cx, int frame)
 {
 	
@@ -403,7 +413,14 @@ void MoveCar(OBJ* ob, int Cx, int frame)
 			Show(ob,ob->width+2-COLS,0);
 
 			//randomly assigns new speed to the car when car reaches the end
-			ob->mv= RA(MVB_FACTOR,MVB_FACTOR+2);
+			FILE *config;
+			config = fopen("config.txt","r");
+			char frogBase = fgetc(config);
+			char carBase = fgetc(config);
+			int randomnes;
+			fscanf(config,"%d", &randomnes);
+			ob->mv= RA(MVC_FACTOR,MVC_FACTOR+randomnes);
+			fclose(config);
 		}
 		else Show(ob,dx,0);
 		
@@ -479,7 +496,7 @@ void lvlGen(WIN* W, int* isRoad, int grProb)
 	}
 }
 
-OBJ** carGen(WIN* W, int* isRoad, int numCars)
+OBJ** carGen(WIN* W, int* isRoad, int numCars, char carBase)
 {
 	//array of pointers to OBJ
 	OBJ** cars = malloc((numCars+1) * sizeof(OBJ*));
@@ -493,7 +510,7 @@ OBJ** carGen(WIN* W, int* isRoad, int numCars)
 		{
 			//setting up memory for each car object
 			cars[numCars-toSpawn]=malloc(sizeof(OBJ));
-			OBJ* car= InitCar(W,CAR_COLOR,RA(1,(COLS-4)),i+3);
+			OBJ* car= InitCar(W,CAR_COLOR,RA(1,(COLS-4)),i+3,carBase);
 			//cars index go from 0 to carNum
 			cars[numCars-toSpawn] = car; 
 			Show(cars[numCars-toSpawn],0,0);
@@ -504,7 +521,6 @@ OBJ** carGen(WIN* W, int* isRoad, int numCars)
 
 	return cars;
 }
-
 
 void lvlRepaint(WIN* W, int* isRoad)
 {
@@ -532,10 +548,10 @@ int MainLoop(WIN* status, WIN* W,int* isRoad, OBJ* frog, OBJ** cars, TIMER* time
 	for(int i =0; i<ROWS; i++)
 		if(isRoad[i]==1) roadCount++;
 	
-	while ( (ch = wgetch(status->window)) != QUIT )					// NON-BLOCKING! (nodelay=TRUE)
+	while ( (ch = wgetch(status->window)) != QUIT )		// NON-BLOCKING! (nodelay=TRUE)
 	{
 		if (ch == ERR) ch = NOKEY;						// ERR is ncurses predefined
-		/* change background or move; update status */
+		
 		else
 		{	
 			if (ch == 'b') {  Show(frog,0,0); }
@@ -544,21 +560,21 @@ int MainLoop(WIN* status, WIN* W,int* isRoad, OBJ* frog, OBJ** cars, TIMER* time
 				Show(frog,0,0);	
 			}
 		}
-		
 		//moves the car and checks for collison 
 		//for now it returns to the main screen 
 		//but some sort of end screen shoul be added 
 		for(int i =0; i<roadCount; i++){
 			MoveCar(cars[i],1,timer->frame_no);
 			if(Collision(frog , cars[i]))
-				return 0;
+				return 1;
 		}
-			
+
+		//when frog jumps to last row (succes)
+		if(frog->y==1) return 2;
 	
 		flushinp();                     					// clear input buffer (avoiding multiple key pressed)
 		/* update timer */
-		if (UpdateTimer(timer,status)) return pts;				// sleep inside
-		
+		if (UpdateTimer(timer,status)) return pts;			// sleep inside
 
 	}
 	return 0;
@@ -576,6 +592,12 @@ void setUp(WIN* statwin, int lvlChoice)
 
 int main()
 {
+	FILE *config;
+	config = fopen("config.txt","r");
+	char frogBase = fgetc(config);
+	char carBase = fgetc(config);
+	fclose(config);
+
 	WINDOW *mainwin = Start();
 
 	Welcome(mainwin);
@@ -602,22 +624,28 @@ int main()
 		for(int i =0; i<ROWS; i++)
 			if(isRoad[i]==1) roadCount++;
 		int numCars = roadCount;
-		OBJ** cars = carGen(playwin,isRoad,numCars);
+		OBJ** cars = carGen(playwin,isRoad,numCars,carBase);
 
-		OBJ* frog = InitFrog(playwin,FROG_COLOR);
+		OBJ* frog = InitFrog(playwin,FROG_COLOR,frogBase);
 		Show(frog,0,0);
 
 		////
 		TIMER* timer = InitTimer(statwin);
-		int result;
-		if ( (result = MainLoop(statwin,playwin, isRoad,frog, cars, timer)) == 0)  
+		int res;  //result of main loop
+		res = MainLoop(statwin,playwin, isRoad,frog, cars, timer);
+		if( res == 0)  
 			EndGame("You have decided to quit the game.",statwin);
+		else if( res == 1)
+			EndGame("Car hit you!",statwin);
+		else if( res == 2)
+			EndGame("You won!",statwin);
 	}
 
-	delwin(playwin->window);							// Clean up (!)
+	delwin(playwin->window);							// Clean up
 	delwin(statwin->window);
 	delwin(mainwin);
 	endwin();
 	refresh();
+	fclose(config);
 	return 0;
 }
